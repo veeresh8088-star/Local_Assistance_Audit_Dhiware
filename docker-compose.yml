@@ -1,0 +1,10 @@
+services:
+  shakthidb:
+    build: .
+    container_name: shakthidb_service
+    environment:
+      - POSTGRES_PASSWORD=ShakthiDB@2026
+      - POSTGRES_DB=postgres
+    ports:
+      - "15234:5432"
+    restart: always

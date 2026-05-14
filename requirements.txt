@@ -1,0 +1,13 @@
+streamlit
+requests
+pdfplumber
+chromadb
+sentence-transformers
+pandas
+python-dotenv
+sqlalchemy
+psycopg2-binary
+pywhatkit
+anthropic
+openpyxl
+python-docx

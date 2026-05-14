@@ -1,0 +1,7 @@
+__pycache__/
+*.db
+*.tar
+*.ova
+.venv/
+.env
+*.log
