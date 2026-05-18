@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 import requests
 import pdfplumber
-import time, json
+import time, json, hashlib
 from datetime import datetime
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
@@ -174,6 +174,25 @@ def extract_text(f):
     doc = Document(f)
     return "\n".join(p.text for p in doc.paragraphs)
 
+def scan_file_security(uploaded_file):
+    bytes_data = uploaded_file.getvalue()
+    # Reset file pointer for subsequent reading
+    uploaded_file.seek(0)
+    
+    # 1. Offline Signature Check: Prevent executables masquerading as documents
+    if bytes_data.startswith(b'MZ'):
+        return False, "Executable payload disguised as document (MZ signature detected)."
+    
+    # 2. Offline Hash Blacklist Check (SHA-256)
+    file_hash = hashlib.sha256(bytes_data).hexdigest()
+    blacklist = [
+        "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8" # Demo malicious hash
+    ]
+    if file_hash in blacklist:
+        return False, f"Known malicious hash signature identified ({file_hash[:8]}...)."
+        
+    return True, "Clean"
+
 def ollama_chat(system_ctx, user_msg):
     # Professional Auditor Persona (Claude-style)
     enhanced_sys = f"You are a Senior Cybersecurity Auditor with expertise in ISO 27001, NIST, and SOC 2. {system_ctx}"
@@ -224,10 +243,22 @@ if run:
     if not uploaded:
         st.sidebar.error("Please upload the evidence file first.")
     else:
+        malware_detected = False
         ctx = ""
         for f in uploaded:
+            # 🛡️ Run Offline Malware Scan
+            is_clean, reason = scan_file_security(f)
+            if not is_clean:
+                st.sidebar.error(f"🚨 SECURITY ALERT: '{f.name}' BLOCKED! {reason}")
+                malware_detected = True
+                break
+                
             text = extract_text(f)
             ctx += f"--- FILE: {f.name} ---\n{text}\n\n"
+            
+        if malware_detected:
+            st.stop()
+            
         st.session_state.context = ctx.strip()
         for s in range(1, 5):
             st.session_state.stage = s
