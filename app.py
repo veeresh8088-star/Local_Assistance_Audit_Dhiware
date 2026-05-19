@@ -364,10 +364,14 @@ def ai_chat_stream(system_ctx, user_msg, model_choice):
 if "active_chat_id" not in st.session_state:
     st.session_state.active_chat_id = uuid.uuid4().hex
 
-for k,v in [("stage",0),("context",""),("findings",[]),("chat",[]),("sel_uc",0)]:
+for k,v in [("stage",0),("context",""),("findings",[]),("chat",[]),("sel_uc",0),("_last_loaded_chat_id","")]:
     if k not in st.session_state: st.session_state[k] = v
 
-st.session_state.chat = get_chat_history(st.session_state.active_chat_id)
+# Only reload chat from DB when the session ID actually changes (not on every rerun)
+# This is the ChatGPT-style pattern: switching sessions loads history, new chat stays empty
+if st.session_state._last_loaded_chat_id != st.session_state.active_chat_id:
+    st.session_state.chat = get_chat_history(st.session_state.active_chat_id)
+    st.session_state._last_loaded_chat_id = st.session_state.active_chat_id
 
 uc = USE_CASES[st.session_state.sel_uc]
 
@@ -380,7 +384,8 @@ with st.sidebar:
 
     st.markdown("**💬 Chat History**")
     if st.button("➕ New Chat", use_container_width=True):
-        st.session_state.active_chat_id = uuid.uuid4().hex
+        new_id = uuid.uuid4().hex
+        st.session_state.active_chat_id = new_id
         st.session_state.update({
             "chat": [],
             "context": "",
@@ -390,7 +395,8 @@ with st.sidebar:
             "resolved_controls": set(),
             "resolved_list": [],
             "ewaste_resolved": None,
-            "last_uploaded_names": ""
+            "last_uploaded_names": "",
+            "_last_loaded_chat_id": new_id  # sync tracker so DB reload is skipped
         })
         st.rerun()
 
