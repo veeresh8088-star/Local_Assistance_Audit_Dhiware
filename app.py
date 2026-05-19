@@ -511,6 +511,7 @@ with st.sidebar:
         "Llama 3.1 (8B) - High Performance Generalist", 
         "Qwen 2.5 (7B) - High Performance Auditor/Reasoning"
     ], label_visibility="collapsed")
+    use_realtime_ollama = st.checkbox("Deep AI Scan (Real-time Ollama ~2 mins)", value=False, help="Uses local Ollama to dynamically extract gaps instead of instant rule-based engine. Excellent for accuracy, slower for live demos.")
     st.divider()
 
     st.markdown("**Compliance Standard**")
@@ -620,14 +621,17 @@ if run:
         file_names_list = list(file_texts.keys())
         scanned_files_str = ", ".join(file_names_list) if file_names_list else "None"
         
-        # Displaying a clear message since local LLM processing takes time
-        with st.spinner(f"🧠 AI Engine analyzing documents via Ollama (This may take 1-3 minutes on local hardware)..."):
-            llm_resolved, llm_findings = generate_ollama_findings(
-                st.session_state.context, 
-                file_names_list, 
-                selected_sls, 
-                ai_model
-            )
+        llm_resolved, llm_findings = None, None
+        
+        if use_realtime_ollama:
+            # Displaying a clear message since local LLM processing takes time
+            with st.spinner(f"🧠 AI Engine analyzing documents via Ollama (This may take 1-3 minutes on local hardware)..."):
+                llm_resolved, llm_findings = generate_ollama_findings(
+                    st.session_state.context, 
+                    file_names_list, 
+                    selected_sls, 
+                    ai_model
+                )
             
         if llm_resolved is not None and llm_findings is not None:
             # Successfully used Ollama
@@ -641,7 +645,7 @@ if run:
                 finding["comment"] = ""
                 finding["editing"] = False
         else:
-            # Fallback to hardcoded mapping if Ollama is offline or fails
+            # Fallback to hardcoded mapping if Ollama is offline, fails, or toggle is OFF
             for control, keywords in GAP_RESOLUTION.items():
                 matching_files = []
                 for fname, ftext in file_texts.items():
