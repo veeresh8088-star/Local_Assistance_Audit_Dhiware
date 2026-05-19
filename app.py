@@ -365,16 +365,7 @@ with st.sidebar:
     st.markdown("**💬 Chat History**")
     if st.button("➕ New Chat", use_container_width=True):
         st.session_state.active_chat_id = uuid.uuid4().hex
-        st.session_state.update({
-            "stage": 0,
-            "context": "",
-            "findings": [],
-            "chat": [],
-            "resolved_count": None,
-            "resolved_controls": set(),
-            "resolved_list": [],
-            "ewaste_resolved": None
-        })
+        st.session_state.chat = []
         st.rerun()
 
     sessions = get_all_chat_sessions()
@@ -392,32 +383,14 @@ with st.sidebar:
                 btn_label = f"✨ {title}" if is_active else f"💬 {title}"
                 if st.button(btn_label, key=f"chat_btn_{s['session_id']}", use_container_width=True, type="secondary" if not is_active else "primary"):
                     st.session_state.active_chat_id = s["session_id"]
-                    st.session_state.update({
-                        "stage": 0,
-                        "context": "",
-                        "findings": [],
-                        "chat": [],
-                        "resolved_count": None,
-                        "resolved_controls": set(),
-                        "resolved_list": [],
-                        "ewaste_resolved": None
-                    })
+                    st.session_state.chat = get_chat_history(s["session_id"])
                     st.rerun()
             with col_del:
                 if st.button("🗑️", key=f"del_btn_{s['session_id']}", use_container_width=True):
                     clear_chat_session(s["session_id"])
                     if is_active:
                         st.session_state.active_chat_id = uuid.uuid4().hex
-                        st.session_state.update({
-                            "stage": 0,
-                            "context": "",
-                            "findings": [],
-                            "chat": [],
-                            "resolved_count": None,
-                            "resolved_controls": set(),
-                            "resolved_list": [],
-                            "ewaste_resolved": None
-                        })
+                        st.session_state.chat = []
                     st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
     else:
@@ -462,6 +435,25 @@ with st.sidebar:
     st.markdown("**Upload Evidence**")
     uploaded = st.file_uploader("Upload evidence document(s)", type=["pdf","docx","doc","xlsx","xls","csv","pptx","ppt","txt"],
                                 accept_multiple_files=True, label_visibility="collapsed")
+    
+    # ── REAL-TIME FILE PARSING FOR AI ASSISTANT ──────────────────────────────
+    if "last_uploaded_names" not in st.session_state:
+        st.session_state.last_uploaded_names = ""
+    
+    uploaded_names_str = ", ".join([f.name for f in uploaded]) if uploaded else ""
+    if (uploaded_names_str != st.session_state.last_uploaded_names) or (uploaded and not st.session_state.context):
+        if uploaded:
+            auto_ctx = ""
+            for f in uploaded:
+                try:
+                    auto_ctx += f"--- FILE: {f.name} ---\n{extract_text(f)}\n\n"
+                except Exception as ex:
+                    auto_ctx += f"--- FILE: {f.name} ---\n(Error extracting text: {ex})\n\n"
+            st.session_state.context = auto_ctx.strip()
+        else:
+            st.session_state.context = ""
+        st.session_state.last_uploaded_names = uploaded_names_str
+
     st.divider()
 
     col_run, col_rst = st.columns([2,1])
