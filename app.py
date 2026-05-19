@@ -382,51 +382,55 @@ with st.sidebar:
     st.markdown(f"<small style='color:#22c55e'>● {db_label} Connected</small>", unsafe_allow_html=True)
     st.divider()
 
-    st.markdown("**💬 Chat History**")
-    if st.button("➕ New Chat", use_container_width=True):
+    # ── New Chat button ───────────────────────────────────────────────────────
+    if st.button("✏️  New Chat", use_container_width=True, type="primary"):
         new_id = uuid.uuid4().hex
         st.session_state.active_chat_id = new_id
         st.session_state.update({
-            "chat": [],
-            "context": "",
-            "findings": [],
-            "stage": 0,
-            "resolved_count": None,
-            "resolved_controls": set(),
-            "resolved_list": [],
-            "ewaste_resolved": None,
-            "last_uploaded_names": "",
-            "_last_loaded_chat_id": new_id  # sync tracker so DB reload is skipped
+            "chat": [], "context": "", "findings": [], "stage": 0,
+            "resolved_count": None, "resolved_controls": set(),
+            "resolved_list": [], "ewaste_resolved": None,
+            "last_uploaded_names": "", "_last_loaded_chat_id": new_id
         })
         st.rerun()
 
+    # ── Recents toggle ────────────────────────────────────────────────────────
     sessions = get_all_chat_sessions()
     if sessions:
-        st.markdown("<div style='max-height: 220px; overflow-y: auto; padding-right: 5px; margin-bottom: 10px;'>", unsafe_allow_html=True)
-        for s in sessions:
-            title = s["session_title"] or "Untitled Chat"
-            if len(title) > 28:
-                title = title[:25] + "..."
-            
-            is_active = s["session_id"] == st.session_state.active_chat_id
-            
-            col_chat, col_del = st.columns([5, 1.2])
-            with col_chat:
-                btn_label = f"✨ {title}" if is_active else f"💬 {title}"
-                if st.button(btn_label, key=f"chat_btn_{s['session_id']}", use_container_width=True, type="secondary" if not is_active else "primary"):
-                    st.session_state.active_chat_id = s["session_id"]
-                    st.session_state.chat = get_chat_history(s["session_id"])
-                    st.rerun()
-            with col_del:
-                if st.button("🗑️", key=f"del_btn_{s['session_id']}", use_container_width=True):
-                    clear_chat_session(s["session_id"])
-                    if is_active:
-                        st.session_state.active_chat_id = uuid.uuid4().hex
-                        st.session_state.chat = []
-                    st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-    else:
-        st.markdown("<small style='color:#475569; display:block; margin-bottom:12px;'>No past chats yet</small>", unsafe_allow_html=True)
+        if "recents_open" not in st.session_state:
+            st.session_state.recents_open = True
+
+        arrow = "▾" if st.session_state.recents_open else "▸"
+        if st.button(f"{arrow}  Recents", use_container_width=True, key="recents_toggle"):
+            st.session_state.recents_open = not st.session_state.recents_open
+            st.rerun()
+
+        if st.session_state.recents_open:
+            for s in sessions:
+                title = s["session_title"] or "Untitled Chat"
+                display = title[:26] + "…" if len(title) > 26 else title
+                is_active = s["session_id"] == st.session_state.active_chat_id
+
+                col_t, col_d = st.columns([6, 1])
+                with col_t:
+                    # Active session highlighted, others plain
+                    label = f"**{display}**" if is_active else display
+                    if st.button(label, key=f"ch_{s['session_id']}", use_container_width=True,
+                                 type="primary" if is_active else "secondary"):
+                        st.session_state.active_chat_id = s["session_id"]
+                        st.session_state.chat = get_chat_history(s["session_id"])
+                        st.session_state._last_loaded_chat_id = s["session_id"]
+                        st.rerun()
+                with col_d:
+                    if st.button("✕", key=f"dx_{s['session_id']}", use_container_width=True):
+                        clear_chat_session(s["session_id"])
+                        if is_active:
+                            new_id = uuid.uuid4().hex
+                            st.session_state.active_chat_id = new_id
+                            st.session_state.chat = []
+                            st.session_state._last_loaded_chat_id = new_id
+                        st.rerun()
+
     st.divider()
 
     st.markdown("**AI Engine Setup**")
