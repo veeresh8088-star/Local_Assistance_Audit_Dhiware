@@ -381,17 +381,20 @@ with st.sidebar:
     st.markdown("**💬 Chat History**")
     if st.button("➕ New Chat", use_container_width=True):
         st.session_state.active_chat_id = uuid.uuid4().hex
-        st.session_state.chat = []
+        st.session_state.update({
+            "chat": [],
+            "context": "",
+            "findings": [],
+            "stage": 0,
+            "resolved_count": None,
+            "resolved_controls": set(),
+            "resolved_list": [],
+            "ewaste_resolved": None,
+            "last_uploaded_names": ""
+        })
         st.rerun()
 
     sessions = get_all_chat_sessions()
-    active_in_history = any(s["session_id"] == st.session_state.active_chat_id for s in sessions)
-    if not active_in_history:
-        sessions.insert(0, {
-            "session_id": st.session_state.active_chat_id,
-            "session_title": "Current Active Chat"
-        })
-
     if sessions:
         st.markdown("<div style='max-height: 220px; overflow-y: auto; padding-right: 5px; margin-bottom: 10px;'>", unsafe_allow_html=True)
         for s in sessions:
@@ -810,15 +813,7 @@ with st.container():
             else:
                 st.markdown(f"<div style='font-size:11px;color:#3b82f6;font-weight:600;margin-top:8px'>🤖 AI Auditor</div><div class='chat-bubble-bot'>{msg['content']}</div>", unsafe_allow_html=True)
 
-        st.divider()
-        st.markdown("<small style='color:#64748b'>Quick questions</small>", unsafe_allow_html=True)
-        qc = st.columns(3)
-        prompts = ["Summarize the key risks","What are the ISO 27001 gaps?","What actions are needed now?"]
-        chosen = None
-        for i,p in enumerate(prompts):
-            if qc[i].button(p, key=f"q{i}", use_container_width=True): chosen = p
-
-        user_msg = st.chat_input("Ask the AI Auditor anything...") or chosen
+        user_msg = st.chat_input("Ask the AI Auditor anything...")
         if user_msg:
             # Determine active title
             title = get_chat_title(st.session_state.active_chat_id)
