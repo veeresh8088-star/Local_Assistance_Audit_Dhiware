@@ -225,18 +225,34 @@ def get_chat_history(session_id):
     db.close()
     return [{"role": m.role, "content": m.content} for m in msgs]
 
+def get_chat_title(session_id):
+    Session = sessionmaker(bind=engine)
+    db = Session()
+    msg = db.query(ChatMessage).filter(ChatMessage.session_id == session_id).order_by(ChatMessage.created_at.asc()).first()
+    db.close()
+    return msg.session_title if msg else None
+
 def get_all_chat_sessions():
     Session = sessionmaker(bind=engine)
     db = Session()
     from sqlalchemy import func
     sub = db.query(
         ChatMessage.session_id,
-        ChatMessage.session_title,
         func.max(ChatMessage.created_at).label("last_msg")
-    ).group_by(ChatMessage.session_id, ChatMessage.session_title).subquery()
-    rows = db.query(sub.c.session_id, sub.c.session_title).order_by(sub.c.last_msg.desc()).all()
+    ).group_by(ChatMessage.session_id).subquery()
+    rows = db.query(
+        ChatMessage.session_id,
+        ChatMessage.session_title
+    ).join(sub, (ChatMessage.session_id == sub.c.session_id) & (ChatMessage.created_at == sub.c.last_msg)).order_by(sub.c.last_msg.desc()).all()
     db.close()
-    return [{"session_id": r.session_id, "session_title": r.session_title} for r in rows]
+    
+    seen = set()
+    sessions = []
+    for r in rows:
+        if r.session_id not in seen:
+            seen.add(r.session_id)
+            sessions.append({"session_id": r.session_id, "session_title": r.session_title})
+    return sessions
 
 def clear_chat_session(session_id):
     Session = sessionmaker(bind=engine)
@@ -369,6 +385,13 @@ with st.sidebar:
         st.rerun()
 
     sessions = get_all_chat_sessions()
+    active_in_history = any(s["session_id"] == st.session_state.active_chat_id for s in sessions)
+    if not active_in_history:
+        sessions.insert(0, {
+            "session_id": st.session_state.active_chat_id,
+            "session_title": "Current Active Chat"
+        })
+
     if sessions:
         st.markdown("<div style='max-height: 220px; overflow-y: auto; padding-right: 5px; margin-bottom: 10px;'>", unsafe_allow_html=True)
         for s in sessions:
@@ -798,16 +821,9 @@ with st.container():
         user_msg = st.chat_input("Ask the AI Auditor anything...") or chosen
         if user_msg:
             # Determine active title
-            existing = get_chat_history(st.session_state.active_chat_id)
-            if not existing:
+            title = get_chat_title(st.session_state.active_chat_id)
+            if not title:
                 title = user_msg[:30] + ("..." if len(user_msg) > 30 else "")
-            else:
-                title = "Untitled Chat"
-                all_sess = get_all_chat_sessions()
-                for s in all_sess:
-                    if s["session_id"] == st.session_state.active_chat_id:
-                        title = s["session_title"]
-                        break
             
             save_chat_message(st.session_state.active_chat_id, title, "user", user_msg)
             
